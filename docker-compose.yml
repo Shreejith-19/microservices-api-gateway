@@ -1,0 +1,129 @@
+version: '3.8'
+
+services:
+  # ----------------------------------------------------
+  # Infrastructure: MongoDB
+  # ----------------------------------------------------
+  mongodb:
+    image: mongo:latest
+    container_name: microservices-mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - microservices-network
+
+  # ----------------------------------------------------
+  # Infrastructure: Redis (Rate Limiting / Caching)
+  # ----------------------------------------------------
+  redis:
+    image: redis:alpine
+    container_name: microservices-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - microservices-network
+
+  # ----------------------------------------------------
+  # Service: API Gateway
+  # ----------------------------------------------------
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    container_name: microservices-gateway
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=your_jwt_secret_key_here
+      - AUTH_SERVICE_URL=http://auth-service:5001
+      - USER_SERVICE_URL=http://user-service:5002
+      - NOTIFICATION_SERVICE_URL=http://notification-service:5003
+    depends_on:
+      - redis
+      - auth-service
+      - user-service
+      - notification-service
+    networks:
+      - microservices-network
+
+  # ----------------------------------------------------
+  # Service: Auth Service
+  # ----------------------------------------------------
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: microservices-auth-service
+    restart: always
+    ports:
+      - "5001:5001"
+      - "50051:50051"
+    environment:
+      - PORT=5001
+      - MONGODB_URI=mongodb://mongodb:27017/auth_db
+      - JWT_SECRET=your_jwt_secret_key_here
+      - GRPC_PORT=50051
+    depends_on:
+      - mongodb
+    networks:
+      - microservices-network
+
+  # ----------------------------------------------------
+  # Service: User Service
+  # ----------------------------------------------------
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: microservices-user-service
+    restart: always
+    ports:
+      - "5002:5002"
+      - "50052:50052"
+    environment:
+      - PORT=5002
+      - MONGODB_URI=mongodb://mongodb:27017/user_db
+      - GRPC_PORT=50052
+    depends_on:
+      - mongodb
+    networks:
+      - microservices-network
+
+  # ----------------------------------------------------
+  # Service: Notification Service
+  # ----------------------------------------------------
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: microservices-notification-service
+    restart: always
+    ports:
+      - "5003:5003"
+      - "50053:50053"
+    environment:
+      - PORT=5003
+      - MONGODB_URI=mongodb://mongodb:27017/notification_db
+      - GRPC_PORT=50053
+    depends_on:
+      - mongodb
+    networks:
+      - microservices-network
+
+networks:
+  microservices-network:
+    driver: bridge
+
+volumes:
+  mongo_data:
+  redis_data:
