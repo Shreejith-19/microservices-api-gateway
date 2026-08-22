@@ -1,4 +1,5 @@
 import User from '../models/User.js';
+import { generateToken } from '../services/jwtService.js';
 
 /**
  * @desc    Register a new user
@@ -53,7 +54,7 @@ export const register = async (req, res, next) => {
 };
 
 /**
- * @desc    Authenticate user & log in
+ * @desc    Authenticate user & log in (generates and returns JWT)
  * @route   POST /login or POST /api/auth/login
  * @access  Public
  */
@@ -87,11 +88,18 @@ export const login = async (req, res, next) => {
       });
     }
 
-    // 4. Return user info without password
+    // 4. Generate JWT payload with userId and email
+    const token = generateToken({
+      userId: user._id.toString(),
+      email: user.email,
+    });
+
+    // 5. Return JWT token and user info without password
     return res.status(200).json({
       success: true,
       message: 'Login successful',
       data: {
+        token,
         user: {
           id: user._id,
           name: user.name,
@@ -104,4 +112,17 @@ export const login = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
+/**
+ * @desc    Protected test endpoint
+ * @route   GET /protected or GET /api/auth/protected
+ * @access  Private (JWT Bearer Token Required)
+ */
+export const getProtected = (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Access granted to protected route',
+    user: req.user,
+  });
 };
