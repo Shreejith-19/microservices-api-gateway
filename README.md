@@ -542,9 +542,7 @@ curl.exe -X POST http://localhost:3000/api/auth/register -H "Content-Type: appli
 
 2. **Log in to obtain a JWT:**
 ```bash
-curl -X POST http://localhost:3000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "engineer@example.com", "password": "SecurePassword123"}'
+curl.exe -X POST http://localhost:3000/api/auth/login -H "Content-Type: application/json" -d "{\"email\":\"engineer@example.com\",\"password\":\"SecurePassword123\"}"
 ```
 *Response (`200 OK`):*
 ```json
@@ -561,10 +559,7 @@ curl -X POST http://localhost:3000/api/auth/login \
 
 1. **Update User Profile (Gateway injects user context):**
 ```bash
-curl -X PUT http://localhost:3000/api/users/profile \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <YOUR_TOKEN>" \
-  -d '{"name": "Backend Engineer", "bio": "Distributed systems enthusiast."}'
+curl.exe -X PUT http://localhost:3000/api/users/profile -H "Content-Type: application/json" -H "Authorization: Bearer <YOUR_TOKEN>" -d "{\"name\":\"Backend Engineer\",\"bio\":\"Distributed systems enthusiast.\"}"
 ```
 *Response (`200 OK`):*
 ```json
@@ -582,8 +577,7 @@ curl -X PUT http://localhost:3000/api/users/profile \
 
 2. **Retrieve Profile:**
 ```bash
-curl -X GET http://localhost:3000/api/users/profile \
-  -H "Authorization: Bearer <YOUR_TOKEN>"
+curl.exe -X GET http://localhost:3000/api/users/profile -H "Authorization: Bearer <YOUR_TOKEN>"
 ```
 
 ---
@@ -593,14 +587,7 @@ curl -X GET http://localhost:3000/api/users/profile \
 This flow illustrates an HTTP call into User Service triggering a synchronous gRPC call into Notification Service over binary HTTP/2:
 
 ```bash
-curl -X POST http://localhost:3000/api/users/test-notification \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <YOUR_TOKEN>" \
-  -d '{
-    "recipient": "interview@company.com",
-    "subject": "Platform Demonstration",
-    "message": "gRPC communication verified between User and Notification services."
-  }'
+curl.exe -X POST http://localhost:3000/api/users/test-notification -H "Content-Type: application/json" -H "Authorization: Bearer <YOUR_TOKEN>" -d "{\"recipient\":\"interview@company.com\",\"subject\":\"Platform Demonstration\",\"message\":\"gRPC communication verified between User and Notification services.\"}"
 ```
 
 *Response (`200 OK`):*
@@ -631,8 +618,7 @@ When exceeding `RATE_LIMIT_MAX_REQUESTS` within `RATE_LIMIT_WINDOW`:
 
 ```bash
 # Excess request trigger
-curl -i -X GET http://localhost:3000/api/users/profile \
-  -H "Authorization: Bearer <YOUR_TOKEN>"
+for /L %i in (1,1,105) do @curl.exe -s -o nul -w "Request %i: Status %{http_code}\n" -X GET http://localhost:3000/api/users/profile -H "Authorization: Bearer <YOUR_TOKEN>"
 ```
 
 *Response Headers & Body (`429 Too Many Requests`):*
@@ -657,13 +643,11 @@ Content-Type: application/json
 
 Pragmatic architectural enhancements that can be introduced as the platform evolves:
 
-1. **Dynamic Service Discovery:** Integrate HashiCorp Consul or Netflix Eureka so downstream services dynamically register IP/ports instead of relying on static environment variables.
-2. **Asynchronous Event-Driven Messaging:** Introduce Apache Kafka or RabbitMQ for decoupled, eventual consistency patterns (e.g., publishing a `UserRegisteredEvent` consumed asynchronously by the Notification Service).
-3. **Distributed Tracing & Observability:** Implement OpenTelemetry with Jaeger or Zipkin and correlate requests across Gateway, HTTP proxies, and gRPC calls using a shared `x-correlation-id` / trace context.
-4. **Refresh Token Rotation & Revocation:** Implement refresh tokens stored in Redis to enable session revocation and short-lived access tokens.
-5. **Kubernetes Deployments:** Translate the Docker Compose definitions into Kubernetes manifests (Deployments, ClusterIP Services, ConfigMaps, Ingress controller).
-6. **Circuit Breakers:** Introduce a circuit breaker library (such as `opossum`) to fast-fail requests when downstream microservices degrade.
-
+1. **Asynchronous Event-Driven Messaging:** Introduce Apache Kafka or RabbitMQ for decoupled, eventual consistency patterns (e.g., publishing a `UserRegisteredEvent` consumed asynchronously by the Notification Service).
+2. **Distributed Tracing & Observability:** Implement OpenTelemetry with Jaeger or Zipkin and correlate requests across Gateway, HTTP proxies, and gRPC calls using a shared `x-correlation-id` / trace context.
+3. **Refresh Token Rotation & Revocation:** Implement refresh tokens stored in Redis to enable session revocation and short-lived access tokens.
+4. **Real email sending:** Integrate an actual email service to enable real-time email delivery instead of simulated email sending
+5. **Frontend:** Create a frontend application to interact with the API Gateway.
 ---
 
 ## License
