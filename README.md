@@ -2,7 +2,7 @@
 
 A modular microservices backend architecture built with **Node.js**, **Express**, **MongoDB**, **Redis**, **gRPC**, and **Docker**.
 
-This platform demonstrates core distributed systems patterns including reverse proxy routing, centralized JWT authentication, distributed Redis-backed rate limiting, database-per-service data isolation, synchronous inter-service gRPC communication via Protocol Buffers, and non-root containerization.
+This platform demonstrates core distributed systems patterns including reverse proxy routing, centralized JWT authentication, distributed Redis-backed rate limiting, database-per-service data isolation, synchronous inter-service gRPC communication via Protocol Buffers.
 
 ---
 
@@ -32,7 +32,7 @@ This platform demonstrates core distributed systems patterns including reverse p
 
 ## 1. Project Overview
 
-The **Microservices API Gateway Platform** is an end-to-end distributed backend system where client applications communicate exclusively through a centralized **API Gateway**. Downstream microservices operate within an internal network, decoupling client clients from internal service topologies, network protocols, and data stores.
+The **Microservices API Gateway Platform** is an end-to-end distributed backend system where client applications communicate exclusively through a centralized **API Gateway**. Downstream microservices operate within an internal network, decoupling clients from internal service topologies, network protocols, and data stores.
 
 ### Core Technologies
 - **Runtime:** Node.js (v20 LTS, ES Modules)
@@ -403,49 +403,6 @@ microservices-api-gateway/
 
 ---
 
-## 14. Environment Variables
-
-Create a `.env` file inside each service directory by copying its respective `.env.example`:
-
-### API Gateway (`gateway/.env`)
-| Variable | Required | Default | Description |
-| :--- | :---: | :--- | :--- |
-| `PORT` | No | `3000` | HTTP port for the Gateway |
-| `JWT_SECRET` | Yes | - | Secret key used to verify incoming JWT tokens |
-| `REDIS_URL` | No | `redis://localhost:6379` | Full Redis connection URI |
-| `REDIS_HOST` | No | `localhost` | Fallback Redis host |
-| `REDIS_PORT` | No | `6379` | Fallback Redis port |
-| `RATE_LIMIT_WINDOW` | No | `60` | Rate limiting sliding window in seconds |
-| `RATE_LIMIT_MAX_REQUESTS`| No | `100` | Max allowed requests per window |
-| `AUTH_SERVICE_URL` | No | `http://localhost:5001`| Base URL for Auth Service |
-| `USER_SERVICE_URL` | No | `http://localhost:5002`| Base URL for User Service |
-| `NOTIFICATION_SERVICE_URL` | No | `http://localhost:5003`| Base URL for Notification Service |
-
-### Auth Service (`auth-service/.env`)
-| Variable | Required | Default | Description |
-| :--- | :---: | :--- | :--- |
-| `PORT` | No | `5001` | HTTP port for Auth Service |
-| `MONGODB_URI` | Yes | `mongodb://localhost:27017/auth_db` | MongoDB connection string |
-| `JWT_SECRET` | Yes | - | Secret key used to sign JWT tokens |
-| `JWT_EXPIRES_IN` | No | `1h` | Token expiration duration |
-
-### User Service (`user-service/.env`)
-| Variable | Required | Default | Description |
-| :--- | :---: | :--- | :--- |
-| `PORT` | No | `5002` | HTTP port for User Service |
-| `MONGODB_URI` | Yes | `mongodb://localhost:27017/user_db` | MongoDB connection string |
-| `NOTIFICATION_GRPC_URL` | No | `localhost:50053` | Address of Notification Service gRPC server |
-
-### Notification Service (`notification-service/.env`)
-| Variable | Required | Default | Description |
-| :--- | :---: | :--- | :--- |
-| `PORT` | No | `5003` | HTTP port for Notification REST endpoints |
-| `GRPC_PORT` | No | `50053` | Port for the Notification gRPC server |
-| `GRPC_HOST` | No | `0.0.0.0` | Host interface for gRPC server binding |
-| `MONGODB_URI` | No | `mongodb://localhost:27017/notification_db` | MongoDB connection string |
-
----
-
 ## 15. How to Run Locally
 
 ### Prerequisites
@@ -563,15 +520,13 @@ All external requests are issued to the **API Gateway** on port `3000`:
 
 ---
 
-## 18. Example Request Flows
+## 18. Example Request Flows (Windows Command Prompt)
 
 ### Flow 1: User Registration & Authentication
 
 1. **Register a user:**
 ```bash
-curl -X POST http://localhost:3000/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email": "engineer@example.com", "password": "SecurePassword123"}'
+curl.exe -X POST http://localhost:3000/api/auth/register -H "Content-Type: application/json" -d "{\"name\":\"Engineer\",\"email\":\"engineer@example.com\",\"password\":\"SecurePassword123\"}"
 ```
 *Response (`201 Created`):*
 ```json
