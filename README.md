@@ -649,7 +649,3 @@ Pragmatic architectural enhancements that can be introduced as the platform evol
 4. **Real email sending:** Integrate an actual email service to enable real-time email delivery instead of simulated email sending
 5. **Frontend:** Create a frontend application to interact with the API Gateway.
 ---
-
-## License
-
-This project is licensed under the MIT License.
