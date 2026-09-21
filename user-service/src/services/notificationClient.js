@@ -1,3 +1,4 @@
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import grpc from '@grpc/grpc-js';
@@ -6,8 +7,15 @@ import protoLoader from '@grpc/proto-loader';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Resolve path to proto/notification.proto located at workspace root
-const PROTO_PATH = path.resolve(__dirname, '../../../proto/notification.proto');
+// Candidate locations for proto/notification.proto (container, local service, or workspace root)
+const candidateProtoPaths = [
+  process.env.PROTO_PATH,
+  path.resolve(__dirname, '../../proto/notification.proto'),
+  path.resolve(__dirname, '../../../proto/notification.proto'),
+  '/usr/src/app/proto/notification.proto',
+].filter(Boolean);
+
+const PROTO_PATH = candidateProtoPaths.find((p) => fs.existsSync(p)) || path.resolve(__dirname, '../../../proto/notification.proto');
 
 // Load protobuf definitions
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
