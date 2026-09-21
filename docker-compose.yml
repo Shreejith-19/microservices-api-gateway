@@ -39,12 +39,15 @@ services:
     container_name: microservices-gateway
     restart: always
     ports:
-      - "8080:8080"
+      - "3000:3000"
     environment:
-      - PORT=8080
+      - PORT=3000
+      - REDIS_URL=redis://redis:6379
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - JWT_SECRET=your_jwt_secret_key_here
+      - JWT_SECRET=${JWT_SECRET}
+      - RATE_LIMIT_WINDOW=60
+      - RATE_LIMIT_MAX_REQUESTS=100
       - AUTH_SERVICE_URL=http://auth-service:5001
       - USER_SERVICE_URL=http://user-service:5002
       - NOTIFICATION_SERVICE_URL=http://notification-service:5003
@@ -71,7 +74,7 @@ services:
     environment:
       - PORT=5001
       - MONGODB_URI=mongodb://mongodb:27017/auth_db
-      - JWT_SECRET=your_jwt_secret_key_here
+      - JWT_SECRET=${JWT_SECRET}
       - GRPC_PORT=50051
     depends_on:
       - mongodb
@@ -94,6 +97,7 @@ services:
       - PORT=5002
       - MONGODB_URI=mongodb://mongodb:27017/user_db
       - GRPC_PORT=50052
+      - NOTIFICATION_GRPC_URL=notification-service:50053
     depends_on:
       - mongodb
     networks:
