@@ -1,9 +1,7 @@
 version: '3.8'
 
 services:
-  # ----------------------------------------------------
-  # Infrastructure: MongoDB
-  # ----------------------------------------------------
+
   mongodb:
     image: mongo:latest
     container_name: microservices-mongodb
@@ -15,9 +13,6 @@ services:
     networks:
       - microservices-network
 
-  # ----------------------------------------------------
-  # Infrastructure: Redis (Rate Limiting / Caching)
-  # ----------------------------------------------------
   redis:
     image: redis:alpine
     container_name: microservices-redis
@@ -29,9 +24,6 @@ services:
     networks:
       - microservices-network
 
-  # ----------------------------------------------------
-  # Service: API Gateway
-  # ----------------------------------------------------
   gateway:
     build:
       context: ./gateway
@@ -59,9 +51,6 @@ services:
     networks:
       - microservices-network
 
-  # ----------------------------------------------------
-  # Service: Auth Service
-  # ----------------------------------------------------
   auth-service:
     build:
       context: ./auth-service
@@ -69,8 +58,8 @@ services:
     container_name: microservices-auth-service
     restart: always
     ports:
-      - "5001:5001"
-      - "50051:50051"
+      - "5001:5001" # http/rest port
+      - "50051:50051" # gRPC port
     environment:
       - PORT=5001
       - MONGODB_URI=mongodb://mongodb:27017/auth_db
@@ -81,9 +70,6 @@ services:
     networks:
       - microservices-network
 
-  # ----------------------------------------------------
-  # Service: User Service
-  # ----------------------------------------------------
   user-service:
     build:
       context: ./user-service
@@ -103,9 +89,6 @@ services:
     networks:
       - microservices-network
 
-  # ----------------------------------------------------
-  # Service: Notification Service
-  # ----------------------------------------------------
   notification-service:
     build:
       context: ./notification-service
