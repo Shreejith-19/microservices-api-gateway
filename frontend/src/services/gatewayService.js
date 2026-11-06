@@ -91,3 +91,37 @@ export const probeRateLimit = async () => {
     return response.data;
   }
 };
+
+// 9. Send a single lightweight request subject to Gateway rate limiting
+export const executeStressTestRequest = async (index) => {
+  const startTime = performance.now();
+  try {
+    const response = await api.get('/api/auth/health', {
+      params: { _burst: index, _t: Date.now() },
+    });
+    const durationMs = Math.round(performance.now() - startTime);
+    return {
+      index,
+      status: response.status,
+      statusText: response.statusText || 'OK',
+      isSuccess: response.status >= 200 && response.status < 300,
+      is429: response.status === 429,
+      durationMs,
+      error: null,
+    };
+  } catch (error) {
+    const durationMs = Math.round(performance.now() - startTime);
+    const status = error.response ? error.response.status : 0;
+    const is429 = status === 429;
+    return {
+      index,
+      status,
+      statusText:
+        error.response?.statusText || (status === 0 ? 'Network Error' : 'Error'),
+      isSuccess: false,
+      is429,
+      durationMs,
+      error: error.response?.data?.message || error.message || 'Request failed',
+    };
+  }
+};

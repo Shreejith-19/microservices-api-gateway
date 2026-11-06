@@ -7,6 +7,7 @@ import { NotificationSection } from '../grpc/NotificationSection';
 import { JwtInspector } from '../inspector/JwtInspector';
 import { IdentityFlowInspector } from '../inspector/IdentityFlowInspector';
 import { RateLimitSection } from '../rate-limit/RateLimitSection';
+import { RateLimitStressTest } from '../rate-limit/RateLimitStressTest';
 import { RequestInspector } from '../inspector/RequestInspector';
 import { ArchitectureFlow } from '../architecture/ArchitectureFlow';
 
@@ -89,7 +90,10 @@ export const DashboardLayout = () => {
             {/* 3. Rate Limit Monitor */}
             <RateLimitSection />
 
-            {/* 4. Gateway Request Inspector */}
+            {/* 4. Rate Limit Stress Test (105 Concurrent Requests) */}
+            <RateLimitStressTest />
+
+            {/* 5. Gateway Request Inspector */}
             <RequestInspector />
 
             {/* 5. Architecture Topology Visualizer */}

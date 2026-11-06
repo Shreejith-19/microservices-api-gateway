@@ -5,6 +5,9 @@ import { authenticateToken } from '../middleware/authMiddleware.js';
 const router = express.Router();
 
 // Public routes
+router.get('/health', (req, res) => {
+  res.status(200).json({ status: 'UP', service: 'auth-service' });
+});
 router.post('/register', register);
 router.post('/login', login);
 
