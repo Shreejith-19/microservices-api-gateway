@@ -4,25 +4,39 @@ import {
   Radio, 
   CheckCircle2, 
   AlertOctagon, 
-  Terminal, 
   ArrowRight,
-  Mail,
   Loader2
 } from 'lucide-react';
-import { PLACEHOLDER_NOTICE } from '../../utils/mockData';
+import { triggerGrpcNotification } from '../../services/gatewayService';
 
 export const NotificationSection = () => {
-  const [recipient, setRecipient] = useState('developer@microservices.local');
+  const [recipient, setRecipient] = useState('engineer@microservices.local');
   const [subject, setSubject] = useState('Deployment Notification');
   const [message, setMessage] = useState('Cluster status is optimal. All 4 services healthy.');
 
   const [callState, setCallState] = useState('idle'); // 'idle' | 'sending' | 'success' | 'error'
+  const [responseData, setResponseData] = useState(null);
+  const [errorMessage, setErrorMessage] = useState(null);
 
-  const handleSimulateCall = () => {
+  const handleSendRpc = async (e) => {
+    if (e) e.preventDefault();
     setCallState('sending');
-    setTimeout(() => {
+    setResponseData(null);
+    setErrorMessage(null);
+
+    try {
+      const result = await triggerGrpcNotification({ recipient, subject, message });
+      setResponseData(result);
       setCallState('success');
-    }, 800);
+    } catch (err) {
+      setErrorMessage(
+        err.response?.data?.message || 
+        err.response?.data?.error || 
+        err.message || 
+        'RPC call failed.'
+      );
+      setCallState('error');
+    }
   };
 
   return (
@@ -51,19 +65,19 @@ export const NotificationSection = () => {
       {/* Protocol Architecture Banner */}
       <div className="mb-4 p-3 rounded-lg bg-slate-950 border border-slate-800 text-xs">
         <div className="flex items-center gap-1.5 text-slate-400 mb-2 font-mono text-[11px]">
-          <span className="text-indigo-400 font-semibold">User Service</span>
+          <span className="text-indigo-400 font-semibold">Gateway :3000</span>
           <ArrowRight className="w-3 h-3 text-slate-600" />
-          <span className="text-cyan-400 font-semibold">proto/notification.proto</span>
+          <span className="text-cyan-400 font-semibold">User Service :5002</span>
           <ArrowRight className="w-3 h-3 text-slate-600" />
-          <span className="text-emerald-400 font-semibold">Notification Service:50053</span>
+          <span className="text-emerald-400 font-semibold">gRPC Client (:50053)</span>
         </div>
         <p className="text-slate-400 text-[11px]">
-          Synchronous binary procedure call <code className="text-cyan-300 font-mono">SendEmail(SendEmailRequest)</code>. No internal HTTP overhead.
+          Invokes <code className="text-cyan-300 font-mono">POST /api/users/test-notification</code> at Gateway, prompting User Service to execute binary gRPC call <code className="text-cyan-300 font-mono">SendEmail()</code>.
         </p>
       </div>
 
       {/* Form */}
-      <form onSubmit={(e) => e.preventDefault()} className="space-y-3">
+      <form onSubmit={handleSendRpc} className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-[11px] font-mono text-slate-400 mb-1">
@@ -71,6 +85,7 @@ export const NotificationSection = () => {
             </label>
             <input
               type="email"
+              required
               value={recipient}
               onChange={(e) => setRecipient(e.target.value)}
               className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-500"
@@ -82,6 +97,7 @@ export const NotificationSection = () => {
             </label>
             <input
               type="text"
+              required
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-500"
@@ -95,6 +111,7 @@ export const NotificationSection = () => {
           </label>
           <textarea
             rows={2}
+            required
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-500"
@@ -106,25 +123,16 @@ export const NotificationSection = () => {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setCallState('error')}
-              className="text-[11px] font-mono text-slate-500 hover:text-rose-400 transition-colors"
-            >
-              Test 502 RPC Fail
-            </button>
-            <span className="text-slate-700">|</span>
-            <button
-              type="button"
-              onClick={() => setCallState('idle')}
+              onClick={() => { setCallState('idle'); setResponseData(null); setErrorMessage(null); }}
               className="text-[11px] font-mono text-slate-500 hover:text-slate-300 transition-colors"
             >
-              Reset
+              Reset Status
             </button>
           </div>
 
           <button
-            type="button"
+            type="submit"
             disabled={callState === 'sending'}
-            onClick={handleSimulateCall}
             className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-medium text-xs shadow-md transition-colors flex items-center gap-2"
           >
             {callState === 'sending' ? (
@@ -141,38 +149,27 @@ export const NotificationSection = () => {
       </form>
 
       {/* Result Card: Success Response */}
-      {callState === 'success' && (
+      {callState === 'success' && responseData && (
         <div className="mt-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs">
           <div className="flex items-center gap-2 text-emerald-400 font-semibold mb-1 font-mono">
             <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
             200 OK — gRPC Response Received
           </div>
           <pre className="p-2 rounded bg-slate-950 border border-slate-800 font-mono text-[11px] text-slate-300 overflow-x-auto">
-{JSON.stringify(
-  {
-    success: true,
-    message: "Notification sent via gRPC successfully",
-    data: {
-      success: true,
-      message: "Email sent successfully"
-    }
-  },
-  null,
-  2
-)}
+{JSON.stringify(responseData, null, 2)}
           </pre>
         </div>
       )}
 
-      {/* Result Card: 502 Error Response */}
+      {/* Result Card: Error Response */}
       {callState === 'error' && (
         <div className="mt-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs">
           <div className="flex items-center gap-2 text-rose-400 font-semibold mb-1 font-mono">
             <AlertOctagon className="w-4 h-4 flex-shrink-0" />
-            502 Bad Gateway — RPC Handshake Failure
+            Error Received from Gateway / User Service
           </div>
-          <p className="text-[11px] text-slate-300 font-mono">
-            "Failed to communicate with Notification Service via gRPC: 14 UNAVAILABLE: connection refused"
+          <p className="text-[11px] text-slate-300 font-mono break-words">
+            {errorMessage || 'Unknown error occurred while contacting gRPC service.'}
           </p>
         </div>
       )}

@@ -1,35 +1,96 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   KeyRound, 
   LogIn, 
   UserPlus, 
   Check, 
-  AlertTriangle, 
   Eye, 
   EyeOff, 
   Lock, 
   ShieldCheck, 
   Copy,
-  LogOut
+  LogOut,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
-import { MOCK_JWT_PAYLOAD, PLACEHOLDER_NOTICE } from '../../utils/mockData';
+import { login, register } from '../../services/gatewayService';
+import { useRequestTelemetry } from '../../context/RequestContext';
 
 export const AuthSection = () => {
+  const { authNotice, clearAuthNotice } = useRequestTelemetry();
   const [tab, setTab] = useState('login'); // 'login' | 'register'
-  const [isLoggedIn, setIsLoggedIn] = useState(true);
+  const [token, setToken] = useState(() => localStorage.getItem('token') || '');
+  const [decodedPayload, setDecodedPayload] = useState(null);
   const [showToken, setShowToken] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [actionMessage, setActionMessage] = useState(null);
+  const [errorMessage, setErrorMessage] = useState(null);
 
-  // Form placeholders
-  const [email, setEmail] = useState('engineer@microservices.local');
-  const [password, setPassword] = useState('Password123');
-  const [name, setName] = useState('Alex Mercer');
+  // Form states
+  const [email, setEmail] = useState('engineer@example.com');
+  const [password, setPassword] = useState('SecurePassword123');
+  const [name, setName] = useState('Engineer');
+
+  // Decode JWT payload on token change
+  useEffect(() => {
+    if (!token) {
+      setDecodedPayload(null);
+      return;
+    }
+    try {
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        const payloadJson = atob(parts[1]);
+        setDecodedPayload(JSON.parse(payloadJson));
+      }
+    } catch {
+      setDecodedPayload(null);
+    }
+  }, [token]);
 
   const handleCopyToken = () => {
-    navigator.clipboard.writeText(MOCK_JWT_PAYLOAD.rawToken);
+    navigator.clipboard.writeText(token);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setToken('');
+    setActionMessage('Logged out. Token removed from localStorage.');
+    setErrorMessage(null);
+    clearAuthNotice();
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setActionMessage(null);
+    setErrorMessage(null);
+
+    try {
+      if (tab === 'login') {
+        const response = await login({ email, password });
+        if (response.data?.token) {
+          localStorage.setItem('token', response.data.token);
+          setToken(response.data.token);
+          setActionMessage('Login successful! JWT stored in localStorage.');
+        }
+      } else {
+        const response = await register({ name, email, password });
+        setActionMessage(response.message || 'User registered successfully! You can now log in.');
+        setTab('login');
+      }
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Authentication request failed.';
+      setErrorMessage(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const isAuthenticated = Boolean(token);
 
   return (
     <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-sm">
@@ -51,7 +112,7 @@ export const AuthSection = () => {
 
         {/* Current Auth Status Pill */}
         <div className="flex items-center gap-2">
-          {isLoggedIn ? (
+          {isAuthenticated ? (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
               <ShieldCheck className="w-3.5 h-3.5" /> AUTHENTICATED
             </span>
@@ -63,11 +124,43 @@ export const AuthSection = () => {
         </div>
       </div>
 
+      {/* 401 Notice Banner from Interceptor */}
+      {authNotice && (
+        <div className="mb-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs font-mono text-rose-300 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span>HTTP 401: {authNotice.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={clearAuthNotice}
+            className="text-[10px] text-slate-400 hover:text-slate-200 underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Action Success & Error Alerts */}
+      {actionMessage && (
+        <div className="mb-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs font-mono text-emerald-300 flex items-center gap-2">
+          <Check className="w-4 h-4 flex-shrink-0" />
+          <span>{actionMessage}</span>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="mb-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs font-mono text-rose-300 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex items-center gap-2 mb-4 border-b border-slate-800/60 pb-3">
         <button
           type="button"
-          onClick={() => setTab('login')}
+          onClick={() => { setTab('login'); setErrorMessage(null); }}
           className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
             tab === 'login'
               ? 'bg-indigo-600 text-white shadow-sm'
@@ -78,7 +171,7 @@ export const AuthSection = () => {
         </button>
         <button
           type="button"
-          onClick={() => setTab('register')}
+          onClick={() => { setTab('register'); setErrorMessage(null); }}
           className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
             tab === 'register'
               ? 'bg-indigo-600 text-white shadow-sm'
@@ -88,20 +181,19 @@ export const AuthSection = () => {
           <UserPlus className="w-3.5 h-3.5" /> Register (POST /api/auth/register)
         </button>
 
-        {/* Quick state toggle for review */}
-        <div className="ml-auto flex items-center gap-2 text-xs">
+        {isAuthenticated && (
           <button
             type="button"
-            onClick={() => setIsLoggedIn(!isLoggedIn)}
-            className="text-[11px] font-mono px-2 py-1 rounded border border-slate-700 text-slate-400 hover:bg-slate-800 transition-colors"
+            onClick={handleLogout}
+            className="ml-auto text-xs font-mono px-2.5 py-1 rounded bg-slate-950 border border-slate-800 text-slate-400 hover:text-rose-400 hover:bg-slate-900 transition-colors flex items-center gap-1.5"
           >
-            Toggle {isLoggedIn ? 'Logout' : 'Login'} State
+            <LogOut className="w-3 h-3" /> Logout
           </button>
-        </div>
+        )}
       </div>
 
-      {/* Auth Form (Interactive Shell) */}
-      <form onSubmit={(e) => e.preventDefault()} className="space-y-3.5">
+      {/* Form */}
+      <form onSubmit={handleSubmit} className="space-y-3.5">
         {tab === 'register' && (
           <div>
             <label className="block text-xs font-mono text-slate-300 mb-1.5">
@@ -109,9 +201,10 @@ export const AuthSection = () => {
             </label>
             <input
               type="text"
+              required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Alex Mercer"
+              placeholder="e.g. Engineer"
               className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 text-xs font-mono focus:outline-none focus:border-indigo-500 transition-colors"
             />
           </div>
@@ -124,9 +217,10 @@ export const AuthSection = () => {
             </label>
             <input
               type="email"
+              required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="engineer@microservices.local"
+              placeholder="engineer@example.com"
               className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 text-xs font-mono focus:outline-none focus:border-indigo-500 transition-colors"
             />
           </div>
@@ -136,6 +230,7 @@ export const AuthSection = () => {
             </label>
             <input
               type="password"
+              required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••••••"
@@ -149,17 +244,29 @@ export const AuthSection = () => {
             Calls Gateway port 3000 &rarr; routed to Auth Service:5001
           </p>
           <button
-            type="button"
-            className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs shadow-md transition-colors flex items-center gap-2"
+            type="submit"
+            disabled={submitting}
+            className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium text-xs shadow-md transition-colors flex items-center gap-2"
           >
-            {tab === 'login' ? <LogIn className="w-3.5 h-3.5" /> : <UserPlus className="w-3.5 h-3.5" />}
-            {tab === 'login' ? 'Simulate Login Request' : 'Simulate Register Request'}
+            {submitting ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Processing...
+              </>
+            ) : tab === 'login' ? (
+              <>
+                <LogIn className="w-3.5 h-3.5" /> Execute Login
+              </>
+            ) : (
+              <>
+                <UserPlus className="w-3.5 h-3.5" /> Execute Register
+              </>
+            )}
           </button>
         </div>
       </form>
 
       {/* Active JWT Inspector Sub-panel */}
-      {isLoggedIn && (
+      {isAuthenticated && (
         <div className="mt-5 pt-4 border-t border-slate-800/80">
           <div className="flex items-center justify-between mb-2.5">
             <div className="flex items-center gap-2">
@@ -194,31 +301,33 @@ export const AuthSection = () => {
           {/* Raw Token String */}
           {showToken && (
             <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 font-mono text-[11px] text-slate-400 break-all mb-3 select-all">
-              {MOCK_JWT_PAYLOAD.rawToken}
+              {token}
             </div>
           )}
 
           {/* Decoded Payload Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 p-3 rounded-lg bg-slate-950/70 border border-slate-800/80 font-mono text-xs">
-            <div>
-              <span className="text-[10px] text-slate-500 uppercase block">USER ID (sub)</span>
-              <span className="text-indigo-300 font-medium truncate block">
-                {MOCK_JWT_PAYLOAD.payload.userId}
-              </span>
+          {decodedPayload && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 p-3 rounded-lg bg-slate-950/70 border border-slate-800/80 font-mono text-xs">
+              <div>
+                <span className="text-[10px] text-slate-500 uppercase block">USER ID (sub)</span>
+                <span className="text-indigo-300 font-medium truncate block">
+                  {decodedPayload.userId}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-500 uppercase block">EMAIL</span>
+                <span className="text-slate-200 truncate block">
+                  {decodedPayload.email}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-500 uppercase block">EXPIRES</span>
+                <span className="text-emerald-400 block">
+                  {new Date(decodedPayload.exp * 1000).toLocaleTimeString()}
+                </span>
+              </div>
             </div>
-            <div>
-              <span className="text-[10px] text-slate-500 uppercase block">EMAIL</span>
-              <span className="text-slate-200 truncate block">
-                {MOCK_JWT_PAYLOAD.payload.email}
-              </span>
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-500 uppercase block">EXPIRES</span>
-              <span className="text-emerald-400 block">
-                1h (Sliding Window)
-              </span>
-            </div>
-          </div>
+          )}
         </div>
       )}
     </div>
