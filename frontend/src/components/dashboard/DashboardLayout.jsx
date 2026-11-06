@@ -4,10 +4,10 @@ import { ServiceHealthCard } from './ServiceHealthCard';
 import { AuthSection } from '../auth/AuthSection';
 import { ProfileSection } from '../profile/ProfileSection';
 import { NotificationSection } from '../grpc/NotificationSection';
+import { JwtInspector } from '../inspector/JwtInspector';
 import { RateLimitSection } from '../rate-limit/RateLimitSection';
 import { RequestInspector } from '../inspector/RequestInspector';
 import { ArchitectureFlow } from '../architecture/ArchitectureFlow';
-import { Server, Shield, Layers, Radio, Database } from 'lucide-react';
 
 export const DashboardLayout = () => {
   const gatewayUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
@@ -56,7 +56,7 @@ export const DashboardLayout = () => {
             {/* 1. Cluster Service Health */}
             <ServiceHealthCard />
 
-            {/* 2. Identity & Authentication */}
+            {/* 2. Identity & Authentication Form */}
             <AuthSection />
 
             {/* 3. User Profile Management */}
@@ -79,13 +79,16 @@ export const DashboardLayout = () => {
               </h3>
             </div>
 
-            {/* 1. Rate Limit Monitor */}
+            {/* 1. Dedicated JWT Inspection & Claims Panel */}
+            <JwtInspector />
+
+            {/* 2. Rate Limit Monitor */}
             <RateLimitSection />
 
-            {/* 2. Gateway Request Inspector */}
+            {/* 3. Gateway Request Inspector */}
             <RequestInspector />
 
-            {/* 3. Architecture Topology Visualizer */}
+            {/* 4. Architecture Topology Visualizer */}
             <ArchitectureFlow />
 
           </div>
@@ -105,7 +108,7 @@ export const DashboardLayout = () => {
             <span className="text-cyan-400">gRPC Port 50053</span>
           </div>
           <div className="text-slate-600">
-            UI Shell Stage: Layout & Component Scaffolding
+            Microservices Control Center &bull; Developer Console
           </div>
         </div>
       </footer>
@@ -114,4 +117,3 @@ export const DashboardLayout = () => {
 };
 
 export default DashboardLayout;
-

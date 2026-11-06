@@ -4,16 +4,10 @@ import {
   LogIn, 
   UserPlus, 
   ShieldCheck, 
-  Copy, 
-  Check, 
-  Eye, 
-  EyeOff, 
   Lock, 
   LogOut, 
   User as UserIcon, 
-  Mail, 
-  Clock, 
-  Shield
+  Mail
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useRequestTelemetry } from '../../context/RequestContext';
@@ -23,7 +17,7 @@ import { SubmitButton } from '../common/SubmitButton';
 import { AlertBanner } from '../common/AlertBanner';
 
 export const AuthSection = () => {
-  const { token, user, decodedToken, isAuthenticated, login, logout } = useAuth();
+  const { isAuthenticated, login, logout } = useAuth();
   const { authNotice, clearAuthNotice } = useRequestTelemetry();
 
   // Active form tab ('login' | 'register')
@@ -45,10 +39,6 @@ export const AuthSection = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
-
-  // JWT string display toggle & copy
-  const [showRawToken, setShowRawToken] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   // Email format regex validator
   const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -168,14 +158,6 @@ export const AuthSection = () => {
     setSuccessMessage('Logged out successfully. JWT session cleared.');
     setErrorMessage(null);
     clearAuthNotice();
-  };
-
-  const handleCopyToken = () => {
-    if (token) {
-      navigator.clipboard.writeText(token);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
   };
 
   return (
@@ -420,75 +402,6 @@ export const AuthSection = () => {
             </SubmitButton>
           </div>
         </form>
-      )}
-
-      {/* Active Session & JWT Inspector Subpanel */}
-      {isAuthenticated && (
-        <div className="mt-5 pt-4 border-t border-slate-800/80">
-          <div className="flex items-center justify-between mb-2.5">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-semibold text-slate-300 flex items-center gap-1.5">
-                <Shield className="w-3.5 h-3.5 text-indigo-400" />
-                ACTIVE JWT SESSION
-              </span>
-              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-indigo-950 text-indigo-300 border border-indigo-800/50">
-                HS256 Verified
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowRawToken(!showRawToken)}
-                className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1 font-mono"
-              >
-                {showRawToken ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                {showRawToken ? 'Hide Token' : 'Show Token'}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleCopyToken}
-                className="p-1 rounded text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
-                title="Copy JWT bearer token"
-              >
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              </button>
-            </div>
-          </div>
-
-          {/* Raw Token String Display */}
-          {showRawToken && (
-            <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 font-mono text-[11px] text-slate-400 break-all mb-3 select-all">
-              {token}
-            </div>
-          )}
-
-          {/* Decoded JWT Claims Grid */}
-          {decodedToken && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-lg bg-slate-950/70 border border-slate-800/80 font-mono text-xs">
-              <div>
-                <span className="text-[10px] text-slate-500 uppercase block">SUBJECT (USER ID)</span>
-                <span className="text-indigo-300 font-medium truncate block">
-                  {decodedToken.userId || user?.id || 'N/A'}
-                </span>
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-500 uppercase block">IDENTITY (EMAIL)</span>
-                <span className="text-slate-200 truncate block">
-                  {decodedToken.email || user?.email || 'N/A'}
-                </span>
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-500 uppercase block">SESSION EXPIRATION</span>
-                <span className="text-emerald-400 block flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {decodedToken.exp ? new Date(decodedToken.exp * 1000).toLocaleTimeString() : 'Active'}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
       )}
     </div>
   );

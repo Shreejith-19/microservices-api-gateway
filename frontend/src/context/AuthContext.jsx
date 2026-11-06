@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { jwtDecode } from 'jwt-decode';
 
 const AuthContext = createContext(null);
 
@@ -17,24 +18,21 @@ export const AuthProvider = ({ children }) => {
   });
   const [decodedToken, setDecodedToken] = useState(null);
 
-  // Parse JWT whenever token changes
+  // Decode JWT payload whenever token changes using jwt-decode
   useEffect(() => {
     if (!token) {
       setDecodedToken(null);
       return;
     }
     try {
-      const parts = token.split('.');
-      if (parts.length === 3) {
-        const payload = JSON.parse(atob(parts[1]));
-        setDecodedToken(payload);
-        
-        // If user object not yet stored, derive initial identity from JWT claims
-        setUser((prev) => prev || {
-          id: payload.userId,
-          email: payload.email,
-        });
-      }
+      const payload = jwtDecode(token);
+      setDecodedToken(payload);
+
+      // If user object not yet stored, derive initial identity from JWT claims
+      setUser((prev) => prev || {
+        id: payload.userId,
+        email: payload.email,
+      });
     } catch {
       setDecodedToken(null);
     }
@@ -85,4 +83,3 @@ export const useAuth = () => {
 };
 
 export default AuthContext;
-
