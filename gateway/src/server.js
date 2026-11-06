@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import net from 'net';
 import gatewayRoutes from './routes/gatewayRoutes.js';
 import redisClient from './config/redis.js';
 import requestLogger from './middleware/requestLogger.js';
@@ -11,15 +12,45 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Helper to probe TCP connectivity directly to a MongoDB host/port with timeout
+const checkMongoTcp = (host, port = 27017, timeoutMs = 1000) => {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    let isSettled = false;
+
+    socket.setTimeout(timeoutMs);
+    socket.once('connect', () => {
+      isSettled = true;
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once('timeout', () => {
+      if (!isSettled) {
+        isSettled = true;
+        socket.destroy();
+        resolve(false);
+      }
+    });
+    socket.once('error', () => {
+      if (!isSettled) {
+        isSettled = true;
+        socket.destroy();
+        resolve(false);
+      }
+    });
+    socket.connect(port, host);
+  });
+};
+
 // Global Middlewares
 app.use(cors());
 app.use(requestLogger); // Structured Request Logger
 
-// Health check endpoint for Gateway and Redis connectivity
+// Health check endpoint for Gateway, Redis, and MongoDB dependencies
 app.get('/health', async (req, res) => {
+  // 1. Probe Redis Connectivity
   let redisStatus = 'DISCONNECTED';
   try {
-    // 1-second timeout so healthcheck returns immediately even if Redis is offline
     const pingPromise = redisClient.ping();
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Connection timed out')), 1000)
@@ -33,7 +64,75 @@ app.get('/health', async (req, res) => {
     redisStatus = `DISCONNECTED (${error.message})`;
   }
 
-  const isHealthy = redisStatus === 'CONNECTED';
+  // 2. Probe MongoDB Dependency Status
+  let mongoStatus = 'DISCONNECTED';
+  let mongoDetails = { status: 'DISCONNECTED' };
+
+  // Attempt A: Probe downstream auth-service health (application-level Mongoose status)
+  const authUrl = process.env.AUTH_SERVICE_URL || 'http://localhost:5001';
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1000);
+    const authRes = await fetch(`${authUrl}/health`, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (authRes.ok) {
+      const authData = await authRes.json();
+      if (authData.mongodb?.status === 'CONNECTED') {
+        mongoStatus = 'CONNECTED';
+        mongoDetails = {
+          status: 'CONNECTED',
+          database: authData.mongodb.database || 'auth_db',
+          host: authData.mongodb.host || 'mongodb',
+          verifiedVia: 'auth-service',
+        };
+      }
+    }
+  } catch (err) {
+    // Attempt B: Fallback probe user-service health
+    try {
+      const userUrl = process.env.USER_SERVICE_URL || 'http://localhost:5002';
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1000);
+      const userRes = await fetch(`${userUrl}/health`, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (userRes.ok) {
+        const userData = await userRes.json();
+        if (userData.mongodb?.status === 'CONNECTED') {
+          mongoStatus = 'CONNECTED';
+          mongoDetails = {
+            status: 'CONNECTED',
+            database: userData.mongodb.database || 'user_db',
+            host: userData.mongodb.host || 'mongodb',
+            verifiedVia: 'user-service',
+          };
+        }
+      }
+    } catch (userErr) {
+      // Attempt C: Direct TCP socket probe to MongoDB host/port
+      const mongoHost = process.env.MONGO_HOST || 'localhost';
+      const mongoPort = parseInt(process.env.MONGO_PORT || '27017', 10);
+      const isTcpUp = await checkMongoTcp(mongoHost, mongoPort, 1000);
+
+      if (isTcpUp) {
+        mongoStatus = 'CONNECTED';
+        mongoDetails = {
+          status: 'CONNECTED',
+          host: mongoHost,
+          port: mongoPort,
+          verifiedVia: 'tcp-socket',
+        };
+      } else {
+        mongoStatus = `DISCONNECTED (${err.message})`;
+        mongoDetails = { status: mongoStatus };
+      }
+    }
+  }
+
+  const isRedisOk = redisStatus === 'CONNECTED';
+  const isMongoOk = mongoStatus === 'CONNECTED';
+  const isHealthy = isRedisOk && isMongoOk;
 
   res.status(isHealthy ? 200 : 503).json({
     status: isHealthy ? 'UP' : 'DEGRADED',
@@ -42,6 +141,10 @@ app.get('/health', async (req, res) => {
     redis: {
       status: redisStatus,
       url: process.env.REDIS_URL || 'redis://localhost:6379',
+    },
+    mongodb: {
+      status: mongoStatus,
+      ...mongoDetails,
     },
   });
 });

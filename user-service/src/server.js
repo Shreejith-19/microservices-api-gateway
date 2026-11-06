@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+import mongoose from 'mongoose';
 import connectDB from './config/db.js';
 import userRoutes from './routes/userRoutes.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
@@ -20,9 +21,18 @@ app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
 
-// Health check endpoint
+// Health check endpoint exposing service and MongoDB connection state
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'UP', service: 'user-service' });
+  const isMongoConnected = mongoose.connection.readyState === 1;
+  res.status(isMongoConnected ? 200 : 503).json({
+    status: isMongoConnected ? 'UP' : 'DEGRADED',
+    service: 'user-service',
+    mongodb: {
+      status: isMongoConnected ? 'CONNECTED' : 'DISCONNECTED',
+      database: 'user_db',
+      host: mongoose.connection.host || 'unknown',
+    },
+  });
 });
 
 // User Service Routes

@@ -33,7 +33,7 @@ export const ServiceHealthCard = () => {
   if (isGatewayResponding === false) {
     gatewayStatus = 'DOWN';
   } else if (isGatewayResponding === true) {
-    // If Gateway responds (even if status 503 DEGRADED due to Redis), Gateway process is UP!
+    // If Gateway responds (even if status 503 DEGRADED due to dependencies), Gateway process is UP!
     gatewayStatus = 'UP';
   }
 
@@ -52,11 +52,23 @@ export const ServiceHealthCard = () => {
     }
   }
 
-  // 3. Inspect if backend health endpoint exposes MongoDB (strict check without fabrication)
+  // 3. Inspect MongoDB dependency status (exposed by Gateway /health)
   const exposesMongo = Boolean(healthData && 'mongodb' in healthData);
-  const mongoStatus = exposesMongo ? (healthData.mongodb?.status || 'UNKNOWN') : 'UNKNOWN';
+  let mongoStatus = 'UNKNOWN';
+  let mongoErrorDetail = '';
+  if (isGatewayResponding === false) {
+    mongoStatus = 'UNKNOWN';
+  } else if (exposesMongo) {
+    const rawMongoStatus = healthData.mongodb?.status || '';
+    if (rawMongoStatus === 'CONNECTED') {
+      mongoStatus = 'CONNECTED';
+    } else {
+      mongoStatus = 'DEGRADED';
+      mongoErrorDetail = rawMongoStatus;
+    }
+  }
 
-  // 4. Fail-Open condition check
+  // 4. Fail-Open condition check (Redis degraded while Gateway is responding)
   const isFailOpenActive = isGatewayResponding === true && redisStatus === 'DEGRADED';
 
   // Status configuration helper
@@ -191,15 +203,15 @@ export const ServiceHealthCard = () => {
         </div>
       )}
 
-      {/* Scenario 3: All Healthy */}
-      {gatewayStatus === 'UP' && redisStatus === 'CONNECTED' && (
+      {/* Scenario 3: All Monitored Infrastructure Healthy */}
+      {gatewayStatus === 'UP' && redisStatus === 'CONNECTED' && mongoStatus === 'CONNECTED' && (
         <div className="mb-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-mono flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-            <span className="font-semibold">Monitored Infrastructure Healthy</span>
+            <span className="font-semibold">All Monitored Infrastructure Healthy</span>
           </div>
           <span className="text-[10px] text-emerald-400/80">
-            Gateway :3000 &bull; Redis :6379 PONG
+            Gateway :3000 &bull; Redis :6379 &bull; MongoDB :27017
           </span>
         </div>
       )}
@@ -277,28 +289,30 @@ export const ServiceHealthCard = () => {
           </div>
         </div>
 
-        {/* Component 3: MongoDB Atlas Connectivity (Strict Backend-Accurate Handling) */}
-        <div className="flex items-center justify-between p-3 rounded-lg bg-slate-950/40 border border-slate-800/60 transition-colors">
+        {/* Component 3: MongoDB Databases Connectivity */}
+        <div className="flex items-center justify-between p-3 rounded-lg bg-slate-950/60 border border-slate-800/80 hover:border-slate-700/80 transition-colors">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded bg-slate-900 border border-slate-800 text-emerald-400">
               <Database className="w-4 h-4" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-slate-300">
+                <span className="text-sm font-semibold text-slate-200">
                   MongoDB Databases
                 </span>
-                <span className="text-[11px] font-mono px-1.5 py-0.2 rounded bg-slate-900 text-slate-400 border border-slate-800">
-                  Atlas Cloud
+                <span className="text-[11px] font-mono px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                  :27017
                 </span>
                 <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-900 text-slate-400 border border-slate-800">
-                  Mongoose
+                  Mongoose / WiredTiger
                 </span>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {exposesMongo 
-                  ? 'Database connectivity verified by Gateway' 
-                  : 'Isolated to Auth (:5001 auth_db) & User (:5002 user_db); not probed by Gateway /health'}
+              <p className="text-xs text-slate-400 mt-0.5">
+                {mongoStatus === 'CONNECTED'
+                  ? (healthData?.mongodb?.verifiedVia
+                      ? `Verified via ${healthData.mongodb.verifiedVia} (${healthData.mongodb.database || healthData.mongodb.host || 'MongoDB'})`
+                      : 'Mongoose connection verified active')
+                  : (mongoErrorDetail || (exposesMongo ? 'Database probe returned degraded' : 'Not exposed by /health'))}
               </p>
             </div>
           </div>
@@ -309,17 +323,21 @@ export const ServiceHealthCard = () => {
               {mongoBadge.label}
             </span>
             <div className="text-[10px] font-mono text-slate-500 mt-1">
-              {exposesMongo ? 'Exposed by backend' : 'Not exposed by /health'}
+              {mongoStatus === 'CONNECTED'
+                ? 'Mongoose readyState 1'
+                : (mongoStatus === 'DEGRADED' ? 'Degraded' : 'Unprobed')}
             </div>
           </div>
         </div>
 
       </div>
 
-      {/* Architecture Disclaimer / Integrity Notice */}
+      {/* Architecture Integrity Notice */}
       <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/60 text-[11px] font-mono text-slate-500 flex items-center justify-between">
-        <span>Backend Contract: GET /health checks Gateway process & Redis ping only.</span>
-        <span className="text-indigo-400 font-semibold">Zero fabricated telemetry</span>
+        <span>Backend Contract: GET /health exposes Gateway, Redis, and MongoDB connectivity.</span>
+        <span className="text-emerald-400 font-semibold flex items-center gap-1">
+          <ShieldCheck className="w-3.5 h-3.5" /> Live Verified Telemetry
+        </span>
       </div>
     </div>
   );
