@@ -6,9 +6,36 @@ import api from './api';
  */
 
 // 1. Gateway Health Check (Local Gateway + Redis check)
-export const fetchGatewayHealth = async () => {
-  const response = await api.get('/health');
-  return response.data;
+export const fetchGatewayHealth = async (options = {}) => {
+  try {
+    const response = await api.get('/health', options);
+    return {
+      isGatewayUp: true,
+      httpStatus: response.status,
+      data: response.data,
+      isNetworkError: false,
+    };
+  } catch (error) {
+    // If the Gateway responded with HTTP 503 (e.g. Redis disconnected),
+    // the Gateway process itself is UP and responding with diagnostic JSON!
+    if (error.response?.data) {
+      return {
+        isGatewayUp: true,
+        httpStatus: error.response.status,
+        data: error.response.data,
+        isNetworkError: false,
+      };
+    }
+
+    // Genuine network error / offline / connection refused
+    return {
+      isGatewayUp: false,
+      httpStatus: 0,
+      data: null,
+      isNetworkError: true,
+      errorMessage: error.message || 'Connection refused or Gateway offline',
+    };
+  }
 };
 
 // 2. Auth Service: Login
@@ -46,4 +73,3 @@ export const triggerDirectNotification = async (payload) => {
   const response = await api.post('/api/notifications/send-email', payload);
   return response.data;
 };
-
