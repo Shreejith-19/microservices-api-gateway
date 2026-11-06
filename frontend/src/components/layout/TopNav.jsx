@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
 import { 
   Server, 
-  Activity, 
-  ExternalLink, 
   Copy, 
   Check, 
   Moon, 
   Sun,
-  Shield, 
-  Radio
+  User,
+  ShieldCheck
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 export const TopNav = ({ gatewayUrl = 'http://localhost:3000' }) => {
+  const { isAuthenticated, user } = useAuth();
   const [copied, setCopied] = useState(false);
   const [isDark, setIsDark] = useState(true);
 
@@ -48,6 +48,14 @@ export const TopNav = ({ gatewayUrl = 'http://localhost:3000' }) => {
         {/* System Meta & Controls */}
         <div className="flex items-center gap-3 sm:gap-4">
           
+          {/* Active User Badge if logged in */}
+          {isAuthenticated && (
+            <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-950/50 border border-indigo-800/50 text-xs font-mono text-indigo-300">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="truncate max-w-[160px]">{user?.name || user?.email || 'Authenticated'}</span>
+            </div>
+          )}
+
           {/* Environment Status Badge */}
           <div className="hidden md:flex items-center gap-2 px-2.5 py-1 rounded-md bg-slate-900 border border-slate-800 text-xs">
             <span className="relative flex h-2 w-2">
@@ -91,4 +99,3 @@ export const TopNav = ({ gatewayUrl = 'http://localhost:3000' }) => {
 };
 
 export default TopNav;
-

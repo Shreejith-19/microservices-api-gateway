@@ -7,14 +7,16 @@ import {
   AlertCircle, 
   Shield, 
   Clock, 
-  CheckCircle2,
-  RefreshCw,
-  Loader2,
+  CheckCircle2, 
+  RefreshCw, 
+  Loader2, 
   Lock
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { fetchProfile, updateProfile } from '../../services/gatewayService';
 
 export const ProfileSection = () => {
+  const { isAuthenticated, user } = useAuth();
   const [profileState, setProfileState] = useState('idle'); // 'idle' | 'loading' | 'loaded' | 'empty' | 'unauthenticated'
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -28,8 +30,7 @@ export const ProfileSection = () => {
   const [profilePicture, setProfilePicture] = useState('');
 
   const loadProfile = useCallback(async () => {
-    const token = localStorage.getItem('token');
-    if (!token) {
+    if (!isAuthenticated) {
       setProfileState('unauthenticated');
       return;
     }
@@ -57,28 +58,37 @@ export const ProfileSection = () => {
         setErrorMessage(err.response?.data?.message || err.message || 'Failed to fetch user profile.');
       }
     }
-  }, []);
+  }, [isAuthenticated]);
 
-  // Check auth and attempt load on mount
+  // Synchronize with reactive auth state
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
+    if (isAuthenticated) {
       loadProfile();
     } else {
       setProfileState('unauthenticated');
+      setProfile(null);
+      setName('');
+      setBio('');
+      setStatusMessage(null);
+      setErrorMessage(null);
     }
-  }, [loadProfile]);
+  }, [isAuthenticated, loadProfile]);
 
   const handleSave = async (e) => {
     if (e) e.preventDefault();
+    if (!isAuthenticated) {
+      setErrorMessage('Protected action blocked: JWT authentication is required.');
+      return;
+    }
+
     setIsSaving(true);
     setStatusMessage(null);
     setErrorMessage(null);
 
     try {
       const res = await updateProfile({
-        name: name || 'Demo Engineer',
-        bio: bio || 'Cloud infrastructure specialist & microservices architect.',
+        name: name || user?.name || 'Cloud Engineer',
+        bio: bio || 'Microservices platform architect.',
         profilePicture: profilePicture || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
       });
 
@@ -120,9 +130,9 @@ export const ProfileSection = () => {
         <button
           type="button"
           onClick={loadProfile}
-          disabled={profileState === 'loading'}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-950 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 text-xs font-mono transition-colors"
-          title="Query User Service through API Gateway"
+          disabled={!isAuthenticated || profileState === 'loading'}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-950 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 text-xs font-mono transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          title={isAuthenticated ? 'Query User Service through API Gateway' : 'Requires authentication'}
         >
           <RefreshCw className={`w-3 h-3 ${profileState === 'loading' ? 'animate-spin text-cyan-400' : ''}`} />
           <span>Refresh GET</span>
@@ -137,7 +147,7 @@ export const ProfileSection = () => {
         </div>
         <div className="flex items-center gap-1.5 font-mono">
           <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-indigo-300 text-[11px]">
-            x-user-id: {profile?.userId ? `${profile.userId.slice(0, 12)}...` : 'Requires JWT auth'}
+            x-user-id: {isAuthenticated ? (profile?.userId || user?.id || 'Verified') : 'Requires JWT auth'}
           </span>
         </div>
       </div>
@@ -158,8 +168,8 @@ export const ProfileSection = () => {
         </div>
       )}
 
-      {/* State 0: Unauthenticated */}
-      {profileState === 'unauthenticated' && (
+      {/* State 0: Unauthenticated (Action Guarded) */}
+      {!isAuthenticated && (
         <div className="p-5 rounded-lg bg-slate-950/70 border border-slate-800 text-center">
           <div className="w-9 h-9 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center mx-auto mb-2">
             <Lock className="w-4 h-4" />
@@ -167,14 +177,17 @@ export const ProfileSection = () => {
           <h3 className="text-xs font-mono font-semibold text-slate-300 mb-1">
             JWT Authentication Required
           </h3>
-          <p className="text-xs text-slate-500 max-w-sm mx-auto">
-            Log in above via the Identity & Authentication module to acquire a signed token and query User Service.
+          <p className="text-xs text-slate-500 max-w-sm mx-auto mb-2">
+            Log in above via the Identity & Authentication panel to acquire a signed token and query User Service on port 5002.
           </p>
+          <span className="inline-block text-[11px] font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-amber-400">
+            Protected Gateway Route: /api/users/*
+          </span>
         </div>
       )}
 
       {/* State 1: Skeleton Loading */}
-      {profileState === 'loading' && (
+      {isAuthenticated && profileState === 'loading' && (
         <div className="animate-pulse space-y-4 p-2">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-full bg-slate-800" />
@@ -188,7 +201,7 @@ export const ProfileSection = () => {
       )}
 
       {/* State 2: 404 Initial Empty Profile State */}
-      {profileState === 'empty' && (
+      {isAuthenticated && profileState === 'empty' && (
         <div className="p-5 rounded-lg bg-amber-500/5 border border-amber-500/20 text-center">
           <div className="w-10 h-10 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center mx-auto mb-2.5">
             <AlertCircle className="w-5 h-5" />
@@ -203,12 +216,12 @@ export const ProfileSection = () => {
             type="button"
             disabled={isSaving}
             onClick={() => {
-              setName('Cloud Engineer');
+              setName(user?.name || 'Cloud Engineer');
               setBio('Microservices platform engineer.');
               setProfilePicture('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80');
               handleSave();
             }}
-            className="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-slate-950 font-semibold text-xs transition-colors inline-flex items-center gap-1.5 shadow-sm"
+            className="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-slate-950 font-semibold text-xs transition-colors inline-flex items-center gap-1.5 shadow-sm disabled:opacity-50"
           >
             {isSaving ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -221,7 +234,7 @@ export const ProfileSection = () => {
       )}
 
       {/* State 3: Loaded Profile Card */}
-      {profileState === 'loaded' && profile && (
+      {isAuthenticated && profileState === 'loaded' && profile && (
         <div className="space-y-4">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3.5">
@@ -232,13 +245,13 @@ export const ProfileSection = () => {
               />
               <div>
                 <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                  {name || 'Anonymous User'}
+                  {name || user?.name || 'Anonymous User'}
                   <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-normal">
                     ACTIVE
                   </span>
                 </h3>
                 <p className="text-xs text-slate-400 font-mono">
-                  userId: {profile.userId}
+                  userId: {profile.userId || user?.id}
                 </p>
               </div>
             </div>

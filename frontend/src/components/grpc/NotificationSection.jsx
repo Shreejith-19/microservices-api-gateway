@@ -4,12 +4,15 @@ import {
   Radio, 
   CheckCircle2, 
   AlertOctagon, 
-  ArrowRight,
-  Loader2
+  ArrowRight, 
+  Loader2,
+  Lock
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { triggerGrpcNotification } from '../../services/gatewayService';
 
 export const NotificationSection = () => {
+  const { isAuthenticated } = useAuth();
   const [recipient, setRecipient] = useState('engineer@microservices.local');
   const [subject, setSubject] = useState('Deployment Notification');
   const [message, setMessage] = useState('Cluster status is optimal. All 4 services healthy.');
@@ -20,6 +23,12 @@ export const NotificationSection = () => {
 
   const handleSendRpc = async (e) => {
     if (e) e.preventDefault();
+    if (!isAuthenticated) {
+      setErrorMessage('Action blocked: JWT Authentication is required to dispatch notifications through the Gateway.');
+      setCallState('error');
+      return;
+    }
+
     setCallState('sending');
     setResponseData(null);
     setErrorMessage(null);
@@ -75,6 +84,17 @@ export const NotificationSection = () => {
           Invokes <code className="text-cyan-300 font-mono">POST /api/users/test-notification</code> at Gateway, prompting User Service to execute binary gRPC call <code className="text-cyan-300 font-mono">SendEmail()</code>.
         </p>
       </div>
+
+      {/* Protected Notice when unauthenticated */}
+      {!isAuthenticated && (
+        <div className="mb-4 p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between text-xs font-mono text-slate-400">
+          <div className="flex items-center gap-2">
+            <Lock className="w-4 h-4 text-amber-400 flex-shrink-0" />
+            <span>Protected Route: Requires valid JWT to access User Service endpoint.</span>
+          </div>
+          <span className="text-[10px] text-amber-400/90 font-medium">GUEST MODE</span>
+        </div>
+      )}
 
       {/* Form */}
       <form onSubmit={handleSendRpc} className="space-y-3">
@@ -132,12 +152,16 @@ export const NotificationSection = () => {
 
           <button
             type="submit"
-            disabled={callState === 'sending'}
-            className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-medium text-xs shadow-md transition-colors flex items-center gap-2"
+            disabled={!isAuthenticated || callState === 'sending'}
+            className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium text-xs shadow-md transition-colors flex items-center gap-2"
           >
             {callState === 'sending' ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 animate-spin" /> Dispatching RPC...
+              </>
+            ) : !isAuthenticated ? (
+              <>
+                <Lock className="w-3.5 h-3.5" /> Login Required to Dispatch
               </>
             ) : (
               <>
