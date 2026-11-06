@@ -18,6 +18,7 @@ const api = axios.create({
 
 // Telemetry event subscribers (e.g. RequestContext)
 const telemetryListeners = new Set();
+let requestCounter = 0;
 
 /**
  * Subscribe a callback to receive captured telemetry records
@@ -44,8 +45,10 @@ const notifyTelemetry = (entry) => {
 // ============================================================================
 api.interceptors.request.use(
   (config) => {
+    requestCounter += 1;
     // Monotonic high-resolution start time and ISO timestamp
     config.metadata = {
+      requestNumber: requestCounter,
       startTime: performance.now(),
       timestamp: new Date().toISOString(),
     };
@@ -75,9 +78,12 @@ api.interceptors.response.use(
       : 0;
 
     // Capture clean telemetry record
+    const requestNumber = config.metadata?.requestNumber || ++requestCounter;
     const telemetryEntry = {
       id: `req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      requestNumber,
       timestamp: config.metadata?.timestamp || new Date().toISOString(),
+      timeFormatted: new Date(config.metadata?.timestamp || Date.now()).toLocaleTimeString(),
       method: (config.method || 'GET').toUpperCase(),
       url: config.url || '',
       fullUrl: `${config.baseURL || ''}${config.url || ''}`,
@@ -87,7 +93,7 @@ api.interceptors.response.use(
       responseHeaders: response.headers || {},
       requestHeaders: sanitizeHeaders(config.headers),
       requestPayload: sanitizePayload(config.data),
-      responseBody: response.data,
+      responseBody: sanitizePayload(response.data),
       isError: false,
     };
 
@@ -130,9 +136,12 @@ api.interceptors.response.use(
       errorMessage = response.data?.message || 'Downstream microservice unavailable.';
     }
 
+    const requestNumber = config.metadata?.requestNumber || ++requestCounter;
     const telemetryEntry = {
       id: `err_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      requestNumber,
       timestamp: config.metadata?.timestamp || new Date().toISOString(),
+      timeFormatted: new Date(config.metadata?.timestamp || Date.now()).toLocaleTimeString(),
       method: (config.method || 'GET').toUpperCase(),
       url: config.url || '',
       fullUrl: `${config.baseURL || ''}${config.url || ''}`,
@@ -142,7 +151,7 @@ api.interceptors.response.use(
       responseHeaders,
       requestHeaders: sanitizeHeaders(config.headers),
       requestPayload: sanitizePayload(config.data),
-      responseBody: response?.data || null,
+      responseBody: sanitizePayload(response?.data || null),
       isError: true,
       errorCategory,
       errorMessage,

@@ -3,7 +3,15 @@
  * such as passwords, credentials, and full authorization secrets.
  */
 
-const SENSITIVE_KEYS = ['password', 'confirmPassword', 'secret', 'currentPassword', 'newPassword'];
+const SENSITIVE_KEYS = [
+  'password',
+  'confirmPassword',
+  'secret',
+  'currentPassword',
+  'newPassword',
+  'apiKey',
+  'jwtSecret',
+];
 
 /**
  * Deep clones and redacts sensitive field values in payloads
@@ -60,10 +68,14 @@ export const sanitizeHeaders = (headers = {}) => {
 
     if (lowerKey === 'authorization' && typeof val === 'string') {
       clean[key] = val.startsWith('Bearer ')
-        ? `Bearer ${val.slice(7, 19)}... [REDACTED]`
+        ? `Bearer ${val.slice(7, 18)}... [REDACTED]`
         : 'Bearer [REDACTED]';
-    } else if (lowerKey === 'cookie') {
-      clean[key] = '[COOKIE REDACTED]';
+    } else if (
+      lowerKey === 'cookie' ||
+      lowerKey === 'set-cookie' ||
+      lowerKey === 'proxy-authorization'
+    ) {
+      clean[key] = '[REDACTED]';
     } else {
       clean[key] = val;
     }

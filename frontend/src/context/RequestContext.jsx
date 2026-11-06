@@ -36,8 +36,8 @@ export const RequestProvider = ({ children }) => {
   useEffect(() => {
     // Listen to all telemetry emitted from Axios interceptors
     const unsubscribe = subscribeTelemetry((entry) => {
-      // 1. Prepend to live request log history (limit to 50 items) - kept separate from rate limit state
-      setRequestLogs((prev) => [entry, ...prev.slice(0, 49)]);
+      // 1. Prepend to live request log history (limit to 100 items) - kept separate from rate limit state
+      setRequestLogs((prev) => [entry, ...prev.slice(0, 99)]);
 
       // 2. Extract rate-limit telemetry from headers (case-insensitive lookup)
       const headers = entry.responseHeaders || {};
