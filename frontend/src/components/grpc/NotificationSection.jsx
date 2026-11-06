@@ -8,13 +8,12 @@ import {
   Lock,
   Mail,
   FileText,
-  Server,
-  Cpu,
   RotateCcw,
   Info
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { triggerGrpcNotification } from '../../services/gatewayService';
+import { GrpcPipelineVisualizer } from './GrpcPipelineVisualizer';
 
 export const NotificationSection = () => {
   const { isAuthenticated } = useAuth();
@@ -32,6 +31,7 @@ export const NotificationSection = () => {
   const [httpStatus, setHttpStatus] = useState(null);
   const [responseData, setResponseData] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
+  const [durationMs, setDurationMs] = useState(null);
 
   // Field validation logic
   const validateForm = () => {
@@ -79,6 +79,8 @@ export const NotificationSection = () => {
     setErrorMessage(null);
     setHttpStatus(null);
 
+    const startTime = performance.now();
+
     try {
       // Centralized Axios client attaches JWT Authorization: Bearer <token>
       const result = await triggerGrpcNotification({
@@ -86,6 +88,9 @@ export const NotificationSection = () => {
         subject: subject.trim(),
         message: message.trim(),
       });
+
+      const duration = Math.round(performance.now() - startTime);
+      setDurationMs(duration);
 
       // Verify the backend confirms successful gRPC completion
       if (result && result.success) {
@@ -98,6 +103,9 @@ export const NotificationSection = () => {
         setCallState('error');
       }
     } catch (err) {
+      const duration = Math.round(performance.now() - startTime);
+      setDurationMs(duration);
+
       const status = err.response ? err.response.status : 0;
       setHttpStatus(status);
       setErrorMessage(
@@ -115,6 +123,7 @@ export const NotificationSection = () => {
     setResponseData(null);
     setErrorMessage(null);
     setHttpStatus(null);
+    setDurationMs(null);
     setErrors({});
   };
 
@@ -128,244 +137,165 @@ export const NotificationSection = () => {
           </div>
           <div>
             <h2 className="text-sm font-semibold text-slate-100 uppercase tracking-wider font-mono">
-              gRPC Notification Pipeline
+              gRPC Notification Panel
             </h2>
             <p className="text-xs text-slate-400">
-              HTTP REST Ingress &rarr; User Service &rarr; Binary gRPC (Port 50053) &rarr; Notification Service
+              Dispatch email notifications via Gateway HTTP &rarr; User Service &rarr; Notification Service (gRPC)
             </p>
           </div>
         </div>
 
-        <span className="text-[11px] font-mono px-2.5 py-1 rounded bg-cyan-950/80 text-cyan-300 border border-cyan-800/60 flex items-center gap-1.5">
-          <Cpu className="w-3 h-3 text-cyan-400" /> HTTP/2 Protobuf
+        <span className="text-[11px] font-mono px-2.5 py-1 rounded bg-cyan-950/80 text-cyan-300 border border-cyan-800/60">
+          gRPC :50053 Internal Socket
         </span>
       </div>
 
-      {/* 2. Visual Representation of the Pipeline */}
+      {/* 2. Notification Dispatch Form */}
       <div className="p-4 rounded-lg bg-slate-950 border border-slate-800/80 space-y-3">
-        <div className="flex items-center justify-between text-xs font-mono text-slate-400 pb-2 border-b border-slate-900">
-          <span className="flex items-center gap-1.5 text-slate-200 font-bold">
-            <Server className="w-3.5 h-3.5 text-indigo-400" /> End-to-End Architectural Pipeline
-          </span>
-          <span className="text-[11px] text-slate-500">
-            Browser never speaks direct gRPC
-          </span>
-        </div>
+        {/* Protected Notice when unauthenticated */}
+        {!isAuthenticated && (
+          <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs font-mono text-slate-300 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Lock className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <span>Authentication Guard: Route <code className="text-amber-200">/api/users/*</code> requires a valid JWT.</span>
+            </div>
+            <span className="text-[10px] text-amber-400 font-bold px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/40">
+              UNAUTHENTICATED
+            </span>
+          </div>
+        )}
 
-        {/* Pipeline Nodes Flow */}
-        <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 items-center text-center font-mono">
-          {/* Node 1: React Dashboard */}
-          <div
-            className={`p-2.5 rounded-lg border transition-all ${
-              callState === 'sending'
-                ? 'bg-indigo-500/15 border-indigo-500 text-indigo-300 ring-1 ring-indigo-500/50'
-                : 'bg-slate-900/80 border-slate-800 text-slate-300'
-            }`}
-          >
-            <div className="text-[10px] text-slate-500 uppercase">Step 1</div>
-            <div className="text-xs font-bold text-slate-100 mt-0.5">React Client</div>
-            <div className="text-[10px] text-indigo-400 mt-1">HTTP REST</div>
+        <form onSubmit={handleSendRpc} className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Recipient Email */}
+            <div>
+              <label className="block text-[11px] font-mono text-slate-400 mb-1 flex items-center gap-1.5">
+                <Mail className="w-3.5 h-3.5 text-slate-500" />
+                <span>RECIPIENT EMAIL</span>
+              </label>
+              <input
+                type="email"
+                value={recipient}
+                onChange={(e) => {
+                  setRecipient(e.target.value);
+                  if (errors.recipient) setErrors((prev) => ({ ...prev, recipient: null }));
+                }}
+                placeholder="e.g. user@domain.com"
+                className={`w-full px-3 py-2 rounded-lg bg-slate-900 border text-xs font-mono text-slate-200 focus:outline-none transition-colors ${
+                  errors.recipient
+                    ? 'border-rose-500 focus:border-rose-500'
+                    : 'border-slate-800 focus:border-cyan-500'
+                }`}
+              />
+              {errors.recipient && (
+                <span className="text-[11px] font-mono text-rose-400 mt-1 block">
+                  {errors.recipient}
+                </span>
+              )}
+            </div>
+
+            {/* Subject Line */}
+            <div>
+              <label className="block text-[11px] font-mono text-slate-400 mb-1 flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-slate-500" />
+                <span>SUBJECT</span>
+              </label>
+              <input
+                type="text"
+                value={subject}
+                onChange={(e) => {
+                  setSubject(e.target.value);
+                  if (errors.subject) setErrors((prev) => ({ ...prev, subject: null }));
+                }}
+                placeholder="e.g. System Alert"
+                className={`w-full px-3 py-2 rounded-lg bg-slate-900 border text-xs font-mono text-slate-200 focus:outline-none transition-colors ${
+                  errors.subject
+                    ? 'border-rose-500 focus:border-rose-500'
+                    : 'border-slate-800 focus:border-cyan-500'
+                }`}
+              />
+              {errors.subject && (
+                <span className="text-[11px] font-mono text-rose-400 mt-1 block">
+                  {errors.subject}
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Node 2: API Gateway */}
-          <div
-            className={`p-2.5 rounded-lg border transition-all ${
-              callState === 'sending'
-                ? 'bg-indigo-500/15 border-indigo-500 text-indigo-300 ring-1 ring-indigo-500/50'
-                : callState === 'error' && httpStatus === 401
-                ? 'bg-rose-500/15 border-rose-500 text-rose-300'
-                : 'bg-slate-900/80 border-slate-800 text-slate-300'
-            }`}
-          >
-            <div className="text-[10px] text-slate-500 uppercase">Step 2</div>
-            <div className="text-xs font-bold text-slate-100 mt-0.5">API Gateway</div>
-            <div className="text-[10px] text-slate-400 mt-1">:3000 (Auth/Proxy)</div>
+          {/* Message Body */}
+          <div>
+            <label className="block text-[11px] font-mono text-slate-400 mb-1">
+              MESSAGE BODY
+            </label>
+            <textarea
+              rows={2}
+              value={message}
+              onChange={(e) => {
+                setMessage(e.target.value);
+                if (errors.message) setErrors((prev) => ({ ...prev, message: null }));
+              }}
+              placeholder="Type your notification message here..."
+              className={`w-full px-3 py-2 rounded-lg bg-slate-900 border text-xs font-mono text-slate-200 focus:outline-none transition-colors ${
+                errors.message
+                  ? 'border-rose-500 focus:border-rose-500'
+                  : 'border-slate-800 focus:border-cyan-500'
+              }`}
+            />
+            {errors.message && (
+              <span className="text-[11px] font-mono text-rose-400 mt-1 block">
+                {errors.message}
+              </span>
+            )}
           </div>
 
-          {/* Node 3: User Service */}
-          <div
-            className={`p-2.5 rounded-lg border transition-all ${
-              callState === 'sending'
-                ? 'bg-cyan-500/15 border-cyan-500 text-cyan-300 ring-1 ring-cyan-500/50'
-                : callState === 'error' && httpStatus === 502
-                ? 'bg-rose-500/15 border-rose-500 text-rose-300'
-                : 'bg-slate-900/80 border-slate-800 text-slate-300'
-            }`}
-          >
-            <div className="text-[10px] text-slate-500 uppercase">Step 3</div>
-            <div className="text-xs font-bold text-slate-100 mt-0.5">User Service</div>
-            <div className="text-[10px] text-cyan-400 mt-1">:5002 (gRPC Client)</div>
-          </div>
+          {/* Form Actions */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <button
+              type="button"
+              onClick={handleReset}
+              className="text-[11px] font-mono text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <RotateCcw className="w-3 h-3" /> Reset Pipeline
+            </button>
 
-          {/* Node 4: Notification Service */}
-          <div
-            className={`p-2.5 rounded-lg border transition-all ${
-              callState === 'success'
-                ? 'bg-emerald-500/15 border-emerald-500 text-emerald-300'
-                : callState === 'sending'
-                ? 'bg-cyan-500/15 border-cyan-500 text-cyan-300 ring-1 ring-cyan-500/50'
-                : 'bg-slate-900/80 border-slate-800 text-slate-300'
-            }`}
-          >
-            <div className="text-[10px] text-slate-500 uppercase">Step 4</div>
-            <div className="text-xs font-bold text-slate-100 mt-0.5">Notification Svc</div>
-            <div className="text-[10px] text-emerald-400 mt-1">:50053 (gRPC Server)</div>
+            <button
+              type="submit"
+              disabled={callState === 'sending' || !isAuthenticated}
+              className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-mono text-xs font-bold shadow-md transition-all flex items-center gap-2 cursor-pointer"
+            >
+              {callState === 'sending' ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                  Dispatching via gRPC...
+                </>
+              ) : !isAuthenticated ? (
+                <>
+                  <Lock className="w-3.5 h-3.5" />
+                  Login Required
+                </>
+              ) : (
+                <>
+                  <Send className="w-3.5 h-3.5" />
+                  Send via gRPC Pipeline
+                </>
+              )}
+            </button>
           </div>
-
-          {/* Node 5: Simulated Delivery */}
-          <div
-            className={`p-2.5 rounded-lg border transition-all ${
-              callState === 'success'
-                ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-300 ring-1 ring-emerald-500/50'
-                : 'bg-slate-900/80 border-slate-800 text-slate-300'
-            }`}
-          >
-            <div className="text-[10px] text-slate-500 uppercase">Step 5</div>
-            <div className="text-xs font-bold text-slate-100 mt-0.5">Simulated Email</div>
-            <div className="text-[10px] text-amber-400 mt-1">Structured Log</div>
-          </div>
-        </div>
-
-        {/* Informational Subtext */}
-        <div className="pt-2 border-t border-slate-900 text-[11px] font-mono text-slate-400 flex items-center justify-between">
-          <span>Boundary: Browser &rarr; HTTP/1.1 REST | Internal: HTTP/2 Protobuf Binary RPC</span>
-          <span className="text-slate-500">RPC: SendEmail()</span>
-        </div>
+        </form>
       </div>
 
-      {/* 3. Protected Route Banner when unauthenticated */}
-      {!isAuthenticated && (
-        <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs font-mono text-slate-300 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Lock className="w-4 h-4 text-amber-400 flex-shrink-0" />
-            <span>Authentication Guard: Route <code className="text-amber-200">/api/users/*</code> requires a valid JWT.</span>
-          </div>
-          <span className="text-[10px] text-amber-400 font-bold px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/40">
-            UNAUTHENTICATED
-          </span>
-        </div>
-      )}
+      {/* 3. Interactive gRPC Architecture Pipeline Visualizer */}
+      <GrpcPipelineVisualizer
+        callState={callState}
+        httpStatus={httpStatus}
+        responseData={responseData}
+        errorMessage={errorMessage}
+        durationMs={durationMs}
+        endpoint="POST /api/users/test-notification"
+        payload={{ recipient, subject, message }}
+      />
 
-      {/* 4. Notification Form */}
-      <form onSubmit={handleSendRpc} className="space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {/* Recipient Email */}
-          <div>
-            <label className="block text-[11px] font-mono text-slate-400 mb-1 flex items-center gap-1.5">
-              <Mail className="w-3.5 h-3.5 text-slate-500" />
-              <span>RECIPIENT EMAIL</span>
-            </label>
-            <input
-              type="email"
-              value={recipient}
-              onChange={(e) => {
-                setRecipient(e.target.value);
-                if (errors.recipient) setErrors((prev) => ({ ...prev, recipient: null }));
-              }}
-              placeholder="e.g. user@domain.com"
-              className={`w-full px-3 py-2 rounded-lg bg-slate-950 border text-xs font-mono text-slate-200 focus:outline-none transition-colors ${
-                errors.recipient
-                  ? 'border-rose-500 focus:border-rose-500'
-                  : 'border-slate-800 focus:border-cyan-500'
-              }`}
-            />
-            {errors.recipient && (
-              <span className="text-[11px] font-mono text-rose-400 mt-1 block">
-                {errors.recipient}
-              </span>
-            )}
-          </div>
-
-          {/* Subject Line */}
-          <div>
-            <label className="block text-[11px] font-mono text-slate-400 mb-1 flex items-center gap-1.5">
-              <FileText className="w-3.5 h-3.5 text-slate-500" />
-              <span>SUBJECT</span>
-            </label>
-            <input
-              type="text"
-              value={subject}
-              onChange={(e) => {
-                setSubject(e.target.value);
-                if (errors.subject) setErrors((prev) => ({ ...prev, subject: null }));
-              }}
-              placeholder="e.g. System Alert"
-              className={`w-full px-3 py-2 rounded-lg bg-slate-950 border text-xs font-mono text-slate-200 focus:outline-none transition-colors ${
-                errors.subject
-                  ? 'border-rose-500 focus:border-rose-500'
-                  : 'border-slate-800 focus:border-cyan-500'
-              }`}
-            />
-            {errors.subject && (
-              <span className="text-[11px] font-mono text-rose-400 mt-1 block">
-                {errors.subject}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Message Body */}
-        <div>
-          <label className="block text-[11px] font-mono text-slate-400 mb-1">
-            MESSAGE BODY
-          </label>
-          <textarea
-            rows={2}
-            value={message}
-            onChange={(e) => {
-              setMessage(e.target.value);
-              if (errors.message) setErrors((prev) => ({ ...prev, message: null }));
-            }}
-            placeholder="Type your notification message here..."
-            className={`w-full px-3 py-2 rounded-lg bg-slate-950 border text-xs font-mono text-slate-200 focus:outline-none transition-colors ${
-              errors.message
-                ? 'border-rose-500 focus:border-rose-500'
-                : 'border-slate-800 focus:border-cyan-500'
-            }`}
-          />
-          {errors.message && (
-            <span className="text-[11px] font-mono text-rose-400 mt-1 block">
-              {errors.message}
-            </span>
-          )}
-        </div>
-
-        {/* Form Actions */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-          <button
-            type="button"
-            onClick={handleReset}
-            className="text-[11px] font-mono text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1 cursor-pointer"
-          >
-            <RotateCcw className="w-3 h-3" /> Reset Status
-          </button>
-
-          <button
-            type="submit"
-            disabled={callState === 'sending' || !isAuthenticated}
-            className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-mono text-xs font-bold shadow-md transition-all flex items-center gap-2 cursor-pointer"
-          >
-            {callState === 'sending' ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
-                Dispatching via gRPC...
-              </>
-            ) : !isAuthenticated ? (
-              <>
-                <Lock className="w-3.5 h-3.5" />
-                Login Required
-              </>
-            ) : (
-              <>
-                <Send className="w-3.5 h-3.5" />
-                Send via gRPC Pipeline
-              </>
-            )}
-          </button>
-        </div>
-      </form>
-
-      {/* 5. Result Card: Confirmed Success Response */}
+      {/* 4. Result Card: Confirmed Success Response */}
       {callState === 'success' && responseData && (
         <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs space-y-2.5">
           <div className="flex items-center justify-between pb-2 border-b border-emerald-500/20">
@@ -412,7 +342,7 @@ export const NotificationSection = () => {
         </div>
       )}
 
-      {/* 6. Result Card: Error Response */}
+      {/* 5. Result Card: Error Response */}
       {callState === 'error' && (
         <div className="p-4 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs space-y-2">
           <div className="flex items-center justify-between pb-2 border-b border-rose-500/20">
