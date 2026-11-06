@@ -42,18 +42,42 @@ const checkMongoTcp = (host, port = 27017, timeoutMs = 1000) => {
   });
 };
 
+// Allowed Origins configuration (environment-driven, avoids wildcard with credentials)
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173')
+  .split(',')
+  .map((o) => o.trim());
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow non-browser requests (e.g. mobile apps, curl, server-to-server) or matched origins
+    if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+      callback(null, true);
+    } else {
+      callback(new Error(`Origin ${origin} not allowed by CORS`));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'x-user-id',
+    'x-user-email',
+    'X-Requested-With',
+    'Accept',
+  ],
+  exposedHeaders: [
+    'X-RateLimit-Limit',
+    'X-RateLimit-Remaining',
+    'X-RateLimit-Reset',
+    'Retry-After',
+  ],
+  optionsSuccessStatus: 200,
+};
+
 // Global Middlewares
-app.use(
-  cors({
-    origin: '*',
-    exposedHeaders: [
-      'X-RateLimit-Limit',
-      'X-RateLimit-Remaining',
-      'X-RateLimit-Reset',
-      'Retry-After',
-    ],
-  })
-);
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Handle OPTIONS preflight requests globally
 app.use(requestLogger); // Structured Request Logger
 
 // Health check endpoint for Gateway, Redis, and MongoDB dependencies

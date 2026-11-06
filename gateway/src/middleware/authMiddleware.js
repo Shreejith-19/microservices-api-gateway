@@ -5,6 +5,11 @@ import jwt from 'jsonwebtoken';
  * Validates incoming Bearer JWT before allowing requests to proceed to protected microservices.
  */
 export const authenticateJWT = (req, res, next) => {
+  // Allow preflight OPTIONS requests to proceed without authentication
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
+
   // Strip any client-supplied identity spoofing headers before processing
   delete req.headers['x-user-id'];
   delete req.headers['x-user-email'];

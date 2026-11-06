@@ -8,6 +8,11 @@ import redisClient from '../config/redis.js';
  */
 export const createRateLimiter = (options = {}) => {
   return async (req, res, next) => {
+    // Skip rate limiting for OPTIONS preflight requests
+    if (req.method === 'OPTIONS') {
+      return next();
+    }
+
     const windowSeconds =
       options.windowSeconds ||
       parseInt(process.env.RATE_LIMIT_WINDOW || '60', 10);
