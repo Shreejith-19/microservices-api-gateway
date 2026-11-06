@@ -73,3 +73,21 @@ export const triggerDirectNotification = async (payload) => {
   const response = await api.post('/api/notifications/send-email', payload);
   return response.data;
 };
+
+// 8. Probe rate-limited Gateway route to capture live rate-limit headers
+export const probeRateLimit = async () => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    // If authenticated, probe user profile
+    const response = await api.get('/api/users/profile');
+    return response.data;
+  } else {
+    // If unauthenticated, probe auth route which has rateLimiter attached at the Gateway layer
+    // Even on auth rejection, the Gateway rateLimiter executes and sets response headers
+    const response = await api.post('/api/auth/login', {
+      email: 'rate-limit-probe@gateway.internal',
+      password: 'probe',
+    });
+    return response.data;
+  }
+};

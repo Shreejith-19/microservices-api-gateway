@@ -8,13 +8,27 @@ export const RequestProvider = ({ children }) => {
   
   // Real-time rate limit telemetry parsed from response headers
   const [rateLimitInfo, setRateLimitInfo] = useState({
-    limit: 100,
-    remaining: 100,
-    reset: 60,
+    status: 'INITIAL', // 'INITIAL' | 'MEASURED' | 'UNAVAILABLE' | 'RATE_LIMITED'
+    limit: null,
+    remaining: null,
+    reset: null,
+    consumed: null,
+    percentageConsumed: null,
+    percentageRemaining: null,
     isLimited: false,
     retryAfter: null,
-    hasLiveTelemetry: false,
+    lastEndpoint: null,
+    lastMethod: null,
+    lastHttpStatus: null,
     lastUpdated: null,
+    diagnosticNote: 'Awaiting ingress API response to inspect rate-limit headers.',
+    rawHeaders: {
+      limit: null,
+      remaining: null,
+      reset: null,
+      retryAfter: null,
+    },
+    lastValidMeasurement: null,
   });
 
   const [authNotice, setAuthNotice] = useState(null);
@@ -22,34 +36,147 @@ export const RequestProvider = ({ children }) => {
   useEffect(() => {
     // Listen to all telemetry emitted from Axios interceptors
     const unsubscribe = subscribeTelemetry((entry) => {
-      // 1. Prepend to live request log history (limit to 50 items)
+      // 1. Prepend to live request log history (limit to 50 items) - kept separate from rate limit state
       setRequestLogs((prev) => [entry, ...prev.slice(0, 49)]);
 
-      // 2. Extract rate-limit telemetry from headers (case-insensitive)
+      // 2. Extract rate-limit telemetry from headers (case-insensitive lookup)
       const headers = entry.responseHeaders || {};
-      const limitHeader = headers['x-ratelimit-limit'];
-      const remainingHeader = headers['x-ratelimit-remaining'];
-      const resetHeader = headers['x-ratelimit-reset'];
-      const retryAfterHeader = headers['retry-after'];
+      const getHeader = (name) => {
+        const target = name.toLowerCase();
+        for (const key of Object.keys(headers)) {
+          if (key.toLowerCase() === target) {
+            return headers[key];
+          }
+        }
+        return undefined;
+      };
 
-      if (remainingHeader !== undefined) {
-        setRateLimitInfo({
-          limit: Number(limitHeader) || 100,
-          remaining: Number(remainingHeader),
-          reset: Number(resetHeader) || 60,
-          isLimited: entry.status === 429,
-          retryAfter: retryAfterHeader || null,
-          hasLiveTelemetry: true,
-          lastUpdated: new Date().toLocaleTimeString(),
-        });
-      } else if (entry.status === 429) {
+      const rawLimit = getHeader('x-ratelimit-limit');
+      const rawRemaining = getHeader('x-ratelimit-remaining');
+      const rawReset = getHeader('x-ratelimit-reset');
+      const rawRetryAfter =
+        getHeader('retry-after') ||
+        (entry.responseBody && entry.responseBody.retryAfter);
+
+      const endpointLabel = `${entry.method} ${entry.url || '/'}`;
+      const now = new Date().toLocaleTimeString();
+
+      // CASE A: HTTP 429 Too Many Requests (Rate limit exhausted)
+      if (entry.status === 429) {
+        const limit = rawLimit !== undefined ? Number(rawLimit) : 100;
+        const remaining = 0;
+        const reset =
+          rawReset !== undefined
+            ? Number(rawReset)
+            : typeof rawRetryAfter === 'number'
+            ? rawRetryAfter
+            : 60;
+        const consumed = limit;
+        const percentageConsumed = 100;
+        const percentageRemaining = 0;
+        const retryAfter = rawRetryAfter || `${reset}s`;
+
         setRateLimitInfo((prev) => ({
-          ...prev,
-          remaining: 0,
+          status: 'RATE_LIMITED',
+          limit,
+          remaining,
+          reset,
+          consumed,
+          percentageConsumed,
+          percentageRemaining,
           isLimited: true,
-          retryAfter: retryAfterHeader || entry.errorMessage,
-          hasLiveTelemetry: true,
-          lastUpdated: new Date().toLocaleTimeString(),
+          retryAfter,
+          lastEndpoint: endpointLabel,
+          lastMethod: entry.method,
+          lastHttpStatus: 429,
+          lastUpdated: now,
+          diagnosticNote: `HTTP 429 Too Many Requests received from ${endpointLabel}. Distributed quota threshold exceeded on Redis.`,
+          rawHeaders: {
+            limit: rawLimit ?? String(limit),
+            remaining: rawRemaining ?? '0',
+            reset: rawReset ?? String(reset),
+            retryAfter: String(retryAfter),
+          },
+          lastValidMeasurement: {
+            limit,
+            remaining: 0,
+            reset,
+            percentageConsumed: 100,
+            timestamp: now,
+            endpoint: endpointLabel,
+          },
+        }));
+      }
+      // CASE B: Real Rate-Limit Measurement (Gateway headers present)
+      else if (rawRemaining !== undefined && rawRemaining !== null) {
+        const limit = Number(rawLimit) || 100;
+        const remaining = Math.max(0, Number(rawRemaining));
+        const reset = rawReset !== undefined ? Number(rawReset) : 60;
+        const consumed = Math.max(0, limit - remaining);
+        const percentageConsumed = Math.min(
+          100,
+          Math.max(0, Math.round((consumed / limit) * 100))
+        );
+        const percentageRemaining = Math.min(
+          100,
+          Math.max(0, Math.round((remaining / limit) * 100))
+        );
+
+        setRateLimitInfo((prev) => ({
+          status: 'MEASURED',
+          limit,
+          remaining,
+          reset,
+          consumed,
+          percentageConsumed,
+          percentageRemaining,
+          isLimited: false,
+          retryAfter: null,
+          lastEndpoint: endpointLabel,
+          lastMethod: entry.method,
+          lastHttpStatus: entry.status,
+          lastUpdated: now,
+          diagnosticNote: `Real rate-limit measurement received from ${endpointLabel}. Atomic Redis counter synchronized.`,
+          rawHeaders: {
+            limit: rawLimit ?? String(limit),
+            remaining: String(remaining),
+            reset: rawReset ?? String(reset),
+            retryAfter: null,
+          },
+          lastValidMeasurement: {
+            limit,
+            remaining,
+            reset,
+            percentageConsumed,
+            timestamp: now,
+            endpoint: endpointLabel,
+          },
+        }));
+      }
+      // CASE C: Unavailable Measurement (Headers missing on response)
+      else {
+        setRateLimitInfo((prev) => ({
+          status: 'UNAVAILABLE',
+          limit: null,
+          remaining: null,
+          reset: null,
+          consumed: null,
+          percentageConsumed: null,
+          percentageRemaining: null,
+          isLimited: false,
+          retryAfter: null,
+          lastEndpoint: endpointLabel,
+          lastMethod: entry.method,
+          lastHttpStatus: entry.status,
+          lastUpdated: now,
+          diagnosticNote: `Endpoint ${endpointLabel} (HTTP ${entry.status}) did not return X-RateLimit headers. Rate limiting may not be mounted on this route or headers were omitted. No values fabricated.`,
+          rawHeaders: {
+            limit: null,
+            remaining: null,
+            reset: null,
+            retryAfter: null,
+          },
+          lastValidMeasurement: prev.lastValidMeasurement || null,
         }));
       }
 

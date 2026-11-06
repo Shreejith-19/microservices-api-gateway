@@ -43,7 +43,17 @@ const checkMongoTcp = (host, port = 27017, timeoutMs = 1000) => {
 };
 
 // Global Middlewares
-app.use(cors());
+app.use(
+  cors({
+    origin: '*',
+    exposedHeaders: [
+      'X-RateLimit-Limit',
+      'X-RateLimit-Remaining',
+      'X-RateLimit-Reset',
+      'Retry-After',
+    ],
+  })
+);
 app.use(requestLogger); // Structured Request Logger
 
 // Health check endpoint for Gateway, Redis, and MongoDB dependencies
