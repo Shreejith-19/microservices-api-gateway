@@ -18,6 +18,10 @@ const createServiceProxy = (target, pathRewrite = {}) => {
     pathRewrite,
     on: {
       proxyReq: (proxyReq, req, res) => {
+        // Strip any client-supplied identity spoofing headers
+        proxyReq.removeHeader('x-user-id');
+        proxyReq.removeHeader('x-user-email');
+
         // Forward authenticated user identity to downstream services
         if (req.user) {
           proxyReq.setHeader('x-user-id', req.user.userId);
