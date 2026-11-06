@@ -5,6 +5,7 @@ import { AuthSection } from '../auth/AuthSection';
 import { ProfileSection } from '../profile/ProfileSection';
 import { NotificationSection } from '../grpc/NotificationSection';
 import { JwtInspector } from '../inspector/JwtInspector';
+import { IdentityFlowInspector } from '../inspector/IdentityFlowInspector';
 import { RateLimitSection } from '../rate-limit/RateLimitSection';
 import { RequestInspector } from '../inspector/RequestInspector';
 import { ArchitectureFlow } from '../architecture/ArchitectureFlow';
@@ -82,13 +83,16 @@ export const DashboardLayout = () => {
             {/* 1. Dedicated JWT Inspection & Claims Panel */}
             <JwtInspector />
 
-            {/* 2. Rate Limit Monitor */}
+            {/* 2. Identity Flow Inspector */}
+            <IdentityFlowInspector />
+
+            {/* 3. Rate Limit Monitor */}
             <RateLimitSection />
 
-            {/* 3. Gateway Request Inspector */}
+            {/* 4. Gateway Request Inspector */}
             <RequestInspector />
 
-            {/* 4. Architecture Topology Visualizer */}
+            {/* 5. Architecture Topology Visualizer */}
             <ArchitectureFlow />
 
           </div>
